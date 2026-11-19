@@ -8,6 +8,8 @@ struct U { vp: mat4x4f, sp: mat4x4f, cam: vec4f, sun: vec4f, fx: vec4f, r0: vec4
 @group(0) @binding(0) var<uniform> u: U;
 @group(0) @binding(1) var shT: texture_depth_2d;
 @group(0) @binding(2) var shS: sampler_comparison;
+@group(0) @binding(3) var pT: texture_2d_array<f32>;
+@group(0) @binding(4) var pS: sampler;
 
 const SUNC = vec3f(2.5, 2.1, 1.65);
 // unit cube from the vertex index: 8 corners (bit 0 x, bit 1 y, bit 2 z), faces +x -x +y -y +z -z, CCW outside
@@ -126,6 +128,10 @@ fn roof(p: vec2f, edge: f32, dxz: f32, de: f32) -> vec3f {
   let edge = min(min(i.l.x, i.s.x - i.l.x), min(i.l.z, i.s.z - i.l.z));
   // derivatives up front: they must be taken in uniform control flow
   let dfu = fwidth(fu); let dy = fwidth(i.w.y); let de = fwidth(edge); let dxz = length(fwidth(i.w.xz)); let dg = fwidth(i.l.x + i.l.z);
+  // poster image coordinates on the face (u runs left to right as seen from outside)
+  var puv = vec2f(select(i.l.x / i.s.x, i.l.z / i.s.z, abs(n.x) > .5), 1. - i.l.y / i.s.y);
+  puv.x = select(puv.x, 1. - puv.x, n.x > .5 || n.z < -.5);
+  let pdx = dpdx(puv); let pdy = dpdy(puv);
   var alb = vec3f(.7); var emi = vec3f(0.); var spec = 0.; var ao = 1.;
   if (mat == 0u || mat == 5u) {
     if (top) { alb = roof(i.w.xz, edge, dxz, de); }
@@ -143,6 +149,14 @@ fn roof(p: vec2f, edge: f32, dxz: f32, de: f32) -> vec3f {
   } else if (mat == 3u) {
     alb = vec3f(.30, .32, .36);
     if (!top) { alb = mix(alb, vec3f(.95, .75, .1), band(i.l.y / i.s.y, .55, 1.2, dy / i.s.y)); }
+  } else if (mat == 7u) {
+    // poster: the image on the face that looks away from the wall, paper edge elsewhere
+    let front = (abs(n.x) > .5 && i.s.x < .1) || (abs(n.z) > .5 && i.s.z < .1);
+    alb = vec3f(.8, .78, .74);
+    if (front) {
+      alb = textureSampleGrad(pT, pS, puv, i32(sd * 3.), pdx, pdy).rgb * (.93 + .07 * vn(i.w.xz * 3. + i.w.y * 2.));
+      spec = .04 * pow(max(dot(reflect(vd, n), u.sun.xyz), 1e-4), 20.); // a little paper sheen
+    }
   } else {
     let g = vn(i.w.xz * 2.3);
     alb = vec3f(.15, .15, .16) * (.8 + .35 * g);
@@ -197,9 +211,10 @@ struct QO { @builtin(position) p: vec4f, @location(0) q: vec2f };
 // ---------------------------------------------------------------- the runner's body, the grapple cable and hook
 // Everything is a capsule (segment a-b, radius): instance a = (a, r), b = (b, -), c = (colour, kind). The vertex shader
 // draws an oriented box around it, the fragment shader ray-traces the exact capsule and writes its depth, so limbs
-// are perfectly round at any distance for 36 vertices each. kind: 0 cloth/skin, 1 metal, 2 glowing.
+// are perfectly round at any distance for 36 vertices each. kind: 0 cloth/skin, 1 metal, 2 glowing, 3 face
+// (the face from the photo, poster layer 2, projected on the front of the head; b.w = the way the head faces).
 struct CO { @builtin(position) p: vec4f, @location(0) w: vec3f, @location(1) @interpolate(flat) a: vec4f,
-  @location(2) @interpolate(flat) b: vec3f, @location(3) @interpolate(flat) c: vec4f };
+  @location(2) @interpolate(flat) b: vec4f, @location(3) @interpolate(flat) c: vec4f };
 struct CF { @location(0) c: vec4f, @builtin(frag_depth) d: f32 };
 @vertex fn vsc(@builtin(vertex_index) vi: u32, @location(0) a: vec4f, @location(1) b: vec4f, @location(2) c: vec4f) -> CO {
   let k = CI[vi];
@@ -208,11 +223,11 @@ struct CF { @location(0) c: vec4f, @builtin(frag_depth) d: f32 };
   let y = normalize(cross(x, select(vec3f(0., 1., 0.), vec3f(1., 0., 0.), abs(x.y) > .9)));
   let z = cross(x, y); let r = a.w;
   let w = a.xyz + x * (select(-r, l + r, (k & 1u) == 1u)) + y * (select(-r, r, ((k >> 1u) & 1u) == 1u)) + z * (select(-r, r, (k >> 2u) == 1u));
-  var o: CO; o.p = u.vp * vec4f(w, 1.); o.w = w; o.a = a; o.b = b.xyz; o.c = c; return o;
+  var o: CO; o.p = u.vp * vec4f(w, 1.); o.w = w; o.a = a; o.b = b; o.c = c; return o;
 }
 @fragment fn fsc(i: CO) -> CF {
   let ro = u.cam.xyz; let rd = normalize(i.w - ro);
-  let pa = i.a.xyz; let r = i.a.w; let ba = i.b - pa; let oa = ro - pa;
+  let pa = i.a.xyz; let r = i.a.w; let pb = i.b.xyz; let ba = pb - pa; let oa = ro - pa;
   let baba = max(dot(ba, ba), 1e-8); let bard = dot(ba, rd); let baoa = dot(ba, oa); let rdoa = dot(rd, oa); let oaoa = dot(oa, oa);
   let qa = baba - bard * bard; let qb = baba * rdoa - baoa * bard; let qc = baba * oaoa - baoa * baoa - r * r * baba;
   var t = -1.;
@@ -221,7 +236,7 @@ struct CF { @location(0) c: vec4f, @builtin(frag_depth) d: f32 };
   if (t < 0.) {
     // end caps
     let y = baoa + max((-qb - sqrt(max(h, 0.))) / max(qa, 1e-9), 0.) * bard;
-    let oc = select(ro - i.b, oa, y <= baba * .5);
+    let oc = select(ro - pb, oa, y <= baba * .5);
     let b2 = dot(rd, oc); let h2 = b2 * b2 - dot(oc, oc) + r * r;
     if (h2 < 0.) { discard; }
     t = -b2 - sqrt(h2);
@@ -233,11 +248,19 @@ struct CF { @location(0) c: vec4f, @builtin(frag_depth) d: f32 };
   var col: vec3f;
   if (kind == 2u) { col = i.c.rgb; }
   else {
+    var alb = i.c.rgb;
+    if (kind == 3u) {
+      let fw = vec3f(-sin(i.b.w), 0., -cos(i.b.w)); let rt = vec3f(cos(i.b.w), 0., -sin(i.b.w));
+      let fz = dot(n, fw);
+      let uv = vec2f(.515 - dot(n, rt) * .125, .37 - n.y * .2);
+      let img = textureSampleLevel(pT, pS, uv, 2, clamp(log2(t * .9), 0., 6.)).rgb * vec3f(.68, .52, .44); // the photo is over-exposed: back to skin tone
+      alb = mix(alb, img, smoothstep(.1, .45, fz));
+    }
     let nl = max(dot(n, u.sun.xyz), 0.);
     var sh = 0.; if (nl > 0.) { sh = shadow(p + n * .05); }
     let amb = mix(vec3f(.22, .20, .19), vec3f(.30, .40, .58), n.y * .5 + .5);
     let rim = pow(1. - max(dot(n, -rd), 0.), 3.);
-    col = i.c.rgb * (SUNC * nl * sh + amb) + rim * amb * .6;
+    col = alb * (SUNC * nl * sh + amb) + rim * amb * .6;
     if (kind == 1u) { let rf = reflect(rd, n); col = col * .5 + sky(rf) * .35 + SUNC * pow(max(dot(rf, u.sun.xyz), 1e-4), 60.) * sh; }
   }
   let cp = u.vp * vec4f(p, 1.);

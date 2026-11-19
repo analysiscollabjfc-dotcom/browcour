@@ -21,6 +21,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyF' || e.code === 'KeyQ') inp.dq = 1;
   else if (e.code === 'KeyR') restart();
   else if (e.code === 'KeyM') setMute(muted ? 0 : 1);
+  else if (e.code === 'KeyV') { sg.on = sg.on ? 0 : 1; msg(sg.on ? 'She\'s back' : 'Singer hidden', 1); }
   else if (e.code === 'KeyH') { showStats = !showStats; $('st').hidden = !showStats; }
   else if (e.code === 'Digit0' || e.code === 'Backspace') freeRoam();
   else if (e.code >= 'Digit1' && e.code <= 'Digit5') startRoute(+e.code[5] - 1, true);
@@ -113,6 +114,12 @@ function refreshMenu() {
 function go() { playing = true; audioInit(); lock(); $('run').textContent = 'Resume'; }
 $('run').onclick = go;
 for (const b of $('ql').children) b.onclick = () => { keep('browcour', b.dataset.q); location.reload(); };
+const songIn = $('song');
+const useSong = async (f) => { if (f && await singerSong(f)) msg('She sings ' + f.name.replace(/\.[^.]+$/, ''), 2); };
+songIn.onchange = () => useSong(songIn.files[0]);
+addEventListener('dragover', (e) => e.preventDefault());
+addEventListener('drop', (e) => { e.preventDefault(); useSong(e.dataTransfer.files[0]); });
+document.addEventListener('visibilitychange', () => { if (AC) document.hidden ? AC.suspend() : AC.resume(); });
 const sens = $('sens'), fovI = $('fov');
 sens.value = cfg.sens; fovI.value = cfg.fov;
 sens.oninput = () => { cfg.sens = +sens.value; saveCfg(); };
@@ -145,6 +152,7 @@ function adapt(ms, dt) {
   else if (avg < 13 && scale < 1) { scale = min(1, scale * 1.06); adaptCd = 3; keep('browcour', LV + ',' + scale.toFixed(3)); }
 }
 
+let trailTick = 0;
 let last = performance.now(), acc = 0, time = 0, frames = 0, stepTick = 0;
 function frame(now) {
   requestAnimationFrame(frame);
@@ -162,6 +170,7 @@ function frame(now) {
       acc -= DT;
       if (freeze > 0) { freeze -= DT; ppos[0] = pos[0]; ppos[1] = pos[1]; ppos[2] = pos[2]; if (freeze <= 0) msg('Go!', 0.8); inp.jq = inp.dq = 0; continue; }
       step(inp);
+      if (++trailTick & 1) trailPush(pos[0], pos[1], pos[2], pl.slide ? 2 : pl.wall ? 3 : pl.ground ? 0 : 1);
       if (route >= 0) rtime += DT;
       if (ev.land) { sfx('land', ev.land); if (ev.land > 3) camS.dip -= min(ev.land * 0.018, 0.35); ev.land = 0; }
       if (ev.jump) { sfx('jump'); ev.jump = 0; }
@@ -232,6 +241,8 @@ function frame(now) {
   for (let i = 0; i < 3; i++) { UB[56 + i] = CB[i] * ty * asp; UB[60 + i] = CB[3 + i] * ty; UB[64 + i] = CB[6 + i]; }
   // the runner's body, the grapple cable and the hook
   buildBody(dt, px, py, pz, px, ey, pz, yaw, CB, 2 * ty / chh, time);
+  if (locked) updateSinger(dt, px, py, pz, inp.yaw, hs);
+  buildSinger(dt, px, ey, pz, CB, 2 * ty / chh, time, singing);
   renderFrame(px, ey, pz, camS.lines > 0.01 ? 1 : 0);
 
   // ---- HUD (text at 15 Hz so the DOM is touched rarely)
@@ -254,6 +265,7 @@ function frame(now) {
       hXh.className = raycast(px, ey, pz, -sin(inp.yaw) * cp2, sin(inp.pitch), -cos(inp.yaw) * cp2, GRANGE) > 2 ? 'g' : '';
     } else hXh.className = 'g on';
     audioWind(sp);
+    singerTick(sg.on && locked, sg.x, sg.y + 1.5, sg.z, px, ey, pz, CB);
     if (showStats) hSt.textContent = `${fpsShow.toFixed(0)} fps  ${cw}×${chh} (${(scale * 100).toFixed(0)}%)  ${drawCalls} draws  ${nv0()} chunks  LV ${'HML'[LV]}`;
   }
 }

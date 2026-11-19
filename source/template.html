@@ -42,6 +42,7 @@ h2 { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; opacity: 
 #ql button.on { background: #fff; color: #0b1a2a; font-weight: 700; }
 label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
 input[type=range] { width: 55%; accent-color: var(--ac); }
+input[type=file] { width: 55%; font-size: 12px; color: #fffa; }
 table { border-collapse: collapse; width: 100%; }
 td { padding: 3px 0; vertical-align: top; }
 td:first-child { white-space: nowrap; padding-right: 12px; }
@@ -71,6 +72,7 @@ kbd { display: inline-block; min-width: 14px; padding: 1px 5px; border-radius: 4
     <h2>Settings</h2>
     <label>Mouse sensitivity <input id="sens" type="range" min="0.2" max="3" step="0.05"></label>
     <label>Field of view <input id="fov" type="range" min="60" max="100" step="1"></label>
+    <label>Her song <input id="song" type="file" accept="audio/*"></label>
     <div id="s">Loading…</div>
   </div>
   <div>
@@ -85,6 +87,7 @@ kbd { display: inline-block; min-width: 14px; padding: 1px 5px; border-radius: 4
       <tr><td>Vault / climb</td><td>Run into a ledge: low ones you vault at full speed, higher ones you mantle, walls you face you run up</td></tr>
       <tr><td><kbd>R</kbd></td><td>Restart route / respawn</td></tr>
       <tr><td><kbd>1</kbd>–<kbd>5</kbd> · <kbd>0</kbd></td><td>Start a route · free run</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Show / hide the singer who follows you. Drop a song file on the page and she sings it</td></tr>
       <tr><td><kbd>M</kbd> · <kbd>H</kbd> · <kbd>Esc</kbd></td><td>Sound · stats · menu</td></tr>
     </table>
   </div>

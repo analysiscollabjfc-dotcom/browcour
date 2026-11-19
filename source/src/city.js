@@ -7,7 +7,8 @@
 // Chunks are CH x CH metres, generated from their coordinates alone, and live in a fixed pool of slots
 // (WIN x WIN around the player, toroidally indexed), so streaming never allocates.
 const CH = 48, MAXB = 56, BF = 8;
-const M_BUILD = 0, M_PROP = 1, M_ACCENT = 2, M_BRIDGE = 3, M_STREET = 4, M_GLASS = 5, M_BEAM = 6;
+const M_BUILD = 0, M_PROP = 1, M_ACCENT = 2, M_BRIDGE = 3, M_STREET = 4, M_GLASS = 5, M_BEAM = 6, M_POSTER = 7;
+const NPOSTER = 3, PW = 3.2, PH = 4; // poster images in the atlas, poster size in metres (4:5)
 // ramp types: the top rises toward +x, -x, +z, -z
 const T_XP = 1, T_XN = 2, T_ZP = 3, T_ZN = 4;
 
@@ -152,6 +153,7 @@ function genChunk(cx, cz, A, o) {
   }
   // small rooftop clutter: AC units and parapets to vault over (skipped at a distance and in the shadow map)
   gMaj = gN;
+  const sAxK = sAx;
   for (let i = 0; i < nl; i++) {
     const k = i * 6; if (LOT[k + 5]) continue;
     const lx0 = LOT[k], lz0 = LOT[k + 1], lx1 = LOT[k + 2], lz1 = LOT[k + 3], h = LOT[k + 4], mx = (lx0 + lx1) / 2, mz = (lz0 + lz1) / 2;
@@ -170,6 +172,49 @@ function genChunk(cx, cz, A, o) {
       if (!reserved(x, z, x + sx, z + sz)) add(x, h, z, sx, 1.05, sz, M_PROP, 0);
     }
   }
+  // posters, from their own random stream (so the rest of the city is unchanged), then moved in front of the
+  // clutter: they are part of the far-visible set
+  const c0 = gN;
+  rseed(cx, cz, 23);
+  if (nl === 2) wallPoster(0, 1, sAxK);
+  else if (nl === 4) { wallPoster(0, 1, 0); wallPoster(2, 3, 0); wallPoster(0, 2, 2); wallPoster(1, 3, 2); }
+  for (let i = 0; i < nl; i++) if (rnd() < 0.3) streetPoster(i, x0, x1, z0, z1);
+  const np = gN - c0;
+  if (np) {
+    const a = gO + gMaj * BF, b = gO + c0 * BF, e = gO + gN * BF;
+    PT.set(gA.subarray(b, e)); gA.copyWithin(a + np * BF, a, b); gA.set(PT.subarray(0, np * BF), a);
+    gMaj += np;
+  }
+}
+const PT = new Float32Array(8 * BF);
+// poster box on the face of lot l, side sd (0:+x 1:-x 2:+z 3:-z), starting `at` along the face, bottom at y
+function poster(l, sd, at, y) {
+  const k = l * 6, t = 0.06;
+  if (sd === 0) add(LOT[k + 2], y, at, t, PH, PW, M_POSTER, 0);
+  else if (sd === 1) add(LOT[k] - t, y, at, t, PH, PW, M_POSTER, 0);
+  else if (sd === 2) add(at, y, LOT[k + 3], PW, PH, t, M_POSTER, 0);
+  else add(at, y, LOT[k + 1] - t, PW, PH, t, M_POSTER, 0);
+}
+// on the taller of two neighbouring lots, the wall that rises above the lower roof: right at a runner's eye level
+function wallPoster(a, b, ax) {
+  const ka = a * 6, kb = b * 6, ha = LOT[ka + 4], hb = LOT[kb + 4];
+  if (abs(ha - hb) < 6.5 || rnd() > 0.6) return;
+  const hi = ha > hb ? a : b, lo = min(ha, hb);
+  const sd = ax === 0 ? (hi === a ? 0 : 1) : (hi === a ? 2 : 3);
+  const o0 = ax === 0 ? max(LOT[ka + 1], LOT[kb + 1]) : max(LOT[ka], LOT[kb]);
+  const o1 = ax === 0 ? min(LOT[ka + 3], LOT[kb + 3]) : min(LOT[ka + 2], LOT[kb + 2]);
+  if (o1 - o0 < PW + 2) return;
+  poster(hi, sd, rr(o0 + 1, o1 - 1 - PW), lo + rr(2.2, 3));
+}
+// high on a street-facing wall, seen from the roofs across the street
+function streetPoster(l, x0, x1, z0, z1) {
+  const k = l * 6, h = LOT[k + 4];
+  if (h < 12) return;
+  const sd = floor(rnd() * 4);
+  const out = sd === 0 ? LOT[k + 2] === x1 : sd === 1 ? LOT[k] === x0 : sd === 2 ? LOT[k + 3] === z1 : LOT[k + 1] === z0;
+  const a0 = sd < 2 ? LOT[k + 1] : LOT[k], a1 = sd < 2 ? LOT[k + 3] : LOT[k + 2];
+  if (!out || a1 - a0 < PW + 2) return;
+  poster(l, sd, rr(a0 + 1, a1 - 1 - PW), h - rr(5, 8));
 }
 
 // ---------------------------------------------------------------- streaming

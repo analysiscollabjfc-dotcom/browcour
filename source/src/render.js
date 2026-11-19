@@ -35,16 +35,35 @@ const NBEAM = 8, BEAM = new Float32Array(NBEAM * BF);
 const beamBuf = device.createBuffer({ size: BEAM.byteLength, usage: BU.VERTEX | BU.COPY_DST });
 let nBeam = 0;
 // capsules: body, cable and hook. 12 floats each (a + radius, b, colour + kind), rewritten every frame
-const MAXCAP = 64, CAP = new Float32Array(MAXCAP * 12);
+const MAXCAP = 120, CAP = new Float32Array(MAXCAP * 12);
 const capBuf = device.createBuffer({ size: CAP.byteLength, usage: BU.VERTEX | BU.COPY_DST });
 let nCap = 0;
+// posters: one 768x320 AVIF atlas (11 KB, inlined by the build) -> a 3-layer sRGB texture array. Mip levels are
+// made by the browser's own high-quality image scaler (createImageBitmap resize), so there is no mip shader.
+const POSTERS = '__POSTERS__';
+const PMIPS = 9, tPost = device.createTexture({ size: [256, 320, NPOSTER], format: 'rgba8unorm-srgb', mipLevelCount: PMIPS,
+  usage: TU.TEXTURE_BINDING | TU.COPY_DST | TU.RENDER_ATTACHMENT });
+try {
+  const atlas = await createImageBitmap(await (await fetch('data:image/avif;base64,' + POSTERS)).blob());
+  for (let i = 0; i < NPOSTER; i++) for (let m = 0; m < PMIPS; m++) {
+    const w = max(1, 256 >> m), h = max(1, 320 >> m);
+    const b = await createImageBitmap(atlas, i * 256, 0, 256, 320, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
+    Q.copyExternalImageToTexture({ source: b }, { texture: tPost, mipLevel: m, origin: [0, 0, i] }, [w, h]);
+    b.close();
+  }
+  atlas.close();
+} catch (e) { console.warn('posters unavailable', e); }
+const sPost = device.createSampler({ magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: LV > 1 ? 1 : 8 });
 const VF = SS.VERTEX | SS.FRAGMENT;
 const bgl = device.createBindGroupLayout({ entries: [
   { binding: 0, visibility: VF, buffer: {} },
   { binding: 1, visibility: SS.FRAGMENT, texture: { sampleType: 'depth' } },
-  { binding: 2, visibility: SS.FRAGMENT, sampler: { type: 'comparison' } }] });
+  { binding: 2, visibility: SS.FRAGMENT, sampler: { type: 'comparison' } },
+  { binding: 3, visibility: SS.FRAGMENT, texture: { viewDimension: '2d-array' } },
+  { binding: 4, visibility: SS.FRAGMENT, sampler: {} }] });
 const mkBG = (t) => device.createBindGroup({ layout: bgl, entries: [
-  { binding: 0, resource: { buffer: ubo } }, { binding: 1, resource: t.createView() }, { binding: 2, resource: sCmp }] });
+  { binding: 0, resource: { buffer: ubo } }, { binding: 1, resource: t.createView() }, { binding: 2, resource: sCmp },
+  { binding: 3, resource: tPost.createView({ dimension: '2d-array' }) }, { binding: 4, resource: sPost }] });
 const bgMain = mkBG(tShadow), bgShadow = mkBG(tDummy); // the shadow pass can't sample the map it draws into
 const layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
 const sm = device.createShaderModule({ code: W_MAIN });

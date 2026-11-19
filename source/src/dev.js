@@ -3,7 +3,7 @@
 // (headless browsers often can't capture a WebGPU canvas, so frames are rendered offscreen and read back)
 // ============================================================================
 window.__bc = {
-  pos, vel, ppos, inp, pl, keys, UB, camS, CPS, teleport, stream, startRoute,
+  pos, vel, ppos, inp, pl, keys, UB, camS, CPS, WB, sN, sCX, SLOTS, MAXB, BF, sg, teleport, stream, startRoute,
   setLocked: (v) => { locked = v; body.classList.toggle('m', !v); },
   get dc() { return drawCalls; }, get scale() { return scale; }, set scale(v) { scale = v; },
   async capture() {
