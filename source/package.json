@@ -1,0 +1,14 @@
+{
+  "name": "browcour",
+  "private": true,
+  "description": "A procedural first-person rooftop parkour game rendered with WebGPU, bundled into one HTML file",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:readable": "node build.mjs --readable",
+    "test": "node test/sim.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

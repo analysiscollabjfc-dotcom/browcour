@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browcour</title>
+<style>
+:root { --fl: 0; --ac: #ff5a1f; --bl: #3cd2ff; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #a9c2d6; color: #fff; font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; user-select: none; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 1px 6px #0007; }
+#hud::after { content: ''; position: absolute; inset: 0; background: #fff; opacity: var(--fl); }
+#xh { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #0004; transition: all .08s; }
+#xh.g { width: 16px; height: 16px; margin: -9px; background: none; border: 2px solid var(--bl); }
+#xh.on { border-color: var(--ac); }
+#sp { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); text-align: center; }
+#v { font: 800 46px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+#sp small { display: block; font-size: 10px; letter-spacing: .3em; opacity: .75; margin-top: 2px; }
+#vt { width: 220px; height: 3px; margin-top: 8px; background: #fff3; }
+#vb { height: 100%; background: linear-gradient(90deg, #fff, var(--bl) 50%, var(--ac)); transform-origin: left; transform: scaleX(0); }
+#tm { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font: 700 30px ui-monospace, Menlo, monospace; }
+#cp { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: .85; white-space: nowrap; }
+#msg { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font: 900 44px system-ui, sans-serif; letter-spacing: .02em; opacity: 0; transition: opacity .25s; }
+#st { position: absolute; top: 8px; left: 10px; font: 12px ui-monospace, monospace; }
+#menu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: linear-gradient(#0b1a2acc, #0b1a2a88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); overflow: auto; padding: 16px; box-sizing: border-box; }
+.m #menu { display: flex; }
+.m #hud { display: none; }
+.card { width: min(760px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+h1 { margin: 0 0 2px; font: 900 54px/1 system-ui, sans-serif; letter-spacing: -.02em; }
+h1 i { color: var(--ac); font-style: normal; }
+.sub { opacity: .7; margin: 0 0 18px; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; }
+#run { width: 100%; padding: 14px; font-weight: 800; font-size: 18px; background: var(--ac); border-radius: 10px; margin-bottom: 18px; }
+#run:hover { filter: brightness(1.1); }
+h2 { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; opacity: .6; margin: 14px 0 8px; font-weight: 700; }
+#rl button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 4px; background: #ffffff12; border-radius: 8px; text-align: left; }
+#rl button:hover { background: #ffffff24; }
+#rl b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: var(--bl); color: #032; font-size: 12px; }
+#rl span { margin-left: auto; font-family: ui-monospace, monospace; opacity: .8; }
+#ql { display: flex; gap: 6px; }
+#ql button { flex: 1; padding: 7px; border-radius: 8px; background: #ffffff12; }
+#ql button.on { background: #fff; color: #0b1a2a; font-weight: 700; }
+label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
+input[type=range] { width: 55%; accent-color: var(--ac); }
+table { border-collapse: collapse; width: 100%; }
+td { padding: 3px 0; vertical-align: top; }
+td:first-child { white-space: nowrap; padding-right: 12px; }
+kbd { display: inline-block; min-width: 14px; padding: 1px 5px; border-radius: 4px; background: #ffffff22; font: 12px ui-monospace, monospace; text-align: center; }
+#s { margin-top: 12px; opacity: .8; }
+.e #s { color: #ffb4a0; opacity: 1; }
+@media (max-width: 640px) { .card { grid-template-columns: 1fr; } h1 { font-size: 42px; } }
+</style>
+</head>
+<body class="m">
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="xh"></div>
+  <div id="tm"></div><div id="cp"></div><div id="msg"></div>
+  <div id="sp"><div id="v">0</div><small>KM/H</small><div id="vt"><div id="vb"></div></div></div>
+  <div id="st" hidden></div>
+</div>
+<div id="menu"><div class="card">
+  <div>
+    <h1>Brow<i>cour</i></h1>
+    <p class="sub">An endless rooftop city. Keep your momentum.</p>
+    <button id="run">Run</button>
+    <h2>Checkpoint routes</h2>
+    <div id="rl"></div>
+    <h2>Detail</h2>
+    <div id="ql"><button data-q="2">Low</button><button data-q="1">Medium</button><button data-q="0">High</button></div>
+    <h2>Settings</h2>
+    <label>Mouse sensitivity <input id="sens" type="range" min="0.2" max="3" step="0.05"></label>
+    <label>Field of view <input id="fov" type="range" min="60" max="100" step="1"></label>
+    <div id="s">Loading…</div>
+  </div>
+  <div>
+    <h2>Moves</h2>
+    <table>
+      <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Run. In the air, strafe and turn with the mouse to gain speed</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Jump · again in the air for a double jump · next to a wall for a wall-kick. Jump right as you land to keep your speed</td></tr>
+      <tr><td><kbd>Shift</kbd> / <kbd>C</kbd></td><td>Slide (boost, faster downhill) · in the air: fast-fall, and land in a slide to turn the fall into speed</td></tr>
+      <tr><td>Mouse 1 / <kbd>E</kbd></td><td>Grapple, hold to swing, release to slingshot</td></tr>
+      <tr><td>Mouse 2 / <kbd>F</kbd></td><td>Air dash</td></tr>
+      <tr><td>Wall-run</td><td>Jump alongside a wall holding <kbd>W</kbd>. The orange panels are built for it</td></tr>
+      <tr><td>Vault / climb</td><td>Run into a ledge: low ones you vault at full speed, higher ones you mantle, walls you face you run up</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Restart route / respawn</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>5</kbd> · <kbd>0</kbd></td><td>Start a route · free run</td></tr>
+      <tr><td><kbd>M</kbd> · <kbd>H</kbd> · <kbd>Esc</kbd></td><td>Sound · stats · menu</td></tr>
+    </table>
+  </div>
+</div></div>
+<script>/*SCRIPT*/</script>
+</body>
+</html>
