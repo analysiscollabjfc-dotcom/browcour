@@ -8,7 +8,7 @@
 const DT = 1 / 120;
 const G = 18, JUMP = 7.2, RUN = 10.5, HW = 0.35, HT = 1.8, HT_C = 1.0, STEP = 0.55, REACH = 2.3, VAULT = 1.25;
 const AIRCAP = 0.9, AIRACC = 7, SLIDE_DEC = 4, SLIDE_BOOST = 4.5, WALL_SPD = 13, WALL_T = 2.2;
-const DASH = 7, GRANGE = 75, GPULL = 24, DRAG_V = 45, EPS = 1e-4, SKIN = 1e-3;
+const DASH = 7, GRANGE = 75, GPULL = 24, GSPEED = 240, DRAG_V = 45, EPS = 1e-4, SKIN = 1e-3;
 
 const pos = new Float64Array(3), vel = new Float64Array(3), ppos = new Float64Array(3);
 const FW = new Float64Array(2), SC = new Float64Array(2);
@@ -16,13 +16,15 @@ const FW = new Float64Array(2), SC = new Float64Array(2);
 const pl = {
   ht: HT + 0.5, ground: 0, gnx: 0.5, gny: 1.5, gnz: 0.5, slide: 0, slideCd: 0.5, coyote: 0.5, jbuf: 0.5, dbuf: 0.5, landT: 0.5,
   dash: 1, djump: 1, climb: 1, airT: 0.5, wall: 0, wnx: 0.5, wnz: 0.5, wallT: 0.5, wallCd: 0.5, lwx: 0.5, lwz: 0.5,
-  climbT: 0.5, cix: 0.5, ciz: 0.5, grap: 0, gx: 0.5, gy: 0.5, gz: 0.5, glen: 0.5, gcd: 0.5, dashT: 0.5,
+  climbT: 0.5, cix: 0.5, ciz: 0.5, grap: 0, gx: 0.5, gy: 0.5, gz: 0.5, gnx2: 0.5, gny2: 0.5, gnz2: 0.5, glen: 0.5, gcd: 0.5, dashT: 0.5,
+  gfly: 0.5, gfly0: 0.5, gwas: 0,
   mantle: 0, mt: 0.5, mdur: 0.5, m0x: 0.5, m0y: 0.5, m0z: 0.5, m1x: 0.5, m1y: 0.5, m1z: 0.5, mvx: 0.5, mvz: 0.5,
 };
 for (const k in pl) pl[k] = 0;
 pl.ht = HT; pl.gny = 1; pl.dash = pl.djump = pl.climb = 1;
 // events for sound and camera, read and cleared by the game after each step
-const ev = { land: 0.5, jump: 0, dash: 0, wall: 0, slide: 0, grap: 0, mantle: 0, kick: 0 };
+// grap: hook fired, ghit: hook bit into the surface, gmiss: fired at nothing
+const ev = { land: 0.5, jump: 0, dash: 0, wall: 0, slide: 0, grap: 0, ghit: 0, gmiss: 0, mantle: 0, kick: 0 };
 for (const k in ev) ev[k] = 0;
 
 function teleport(x, y, z) {
@@ -214,10 +216,14 @@ function step(inp) {
   else if (pl.ht < HT && !overlapAt(pos[0], pos[1], pos[2], HT)) pl.ht = HT;
 
   // grapple: attach to whatever the crosshair points at, release on letting go
+  // the hook flies at GSPEED: the rope only pulls once it has bitten (pl.gfly <= 0)
+  const press = inp.g && !pl.gwas; pl.gwas = inp.g;
   if (inp.g && !pl.grap && pl.gcd <= 0) {
     const t = raycast(pos[0], pos[1] + pl.ht - 0.15, pos[2], lx, ly, lz, GRANGE);
-    if (t > 2) { pl.grap = 1; pl.gx = RH[0]; pl.gy = RH[1]; pl.gz = RH[2]; pl.glen = t; ev.grap = 1; if (pl.wall) endWall(); pl.climbT = 0; }
-    else pl.gcd = 0.1;
+    if (t > 2) {
+      pl.grap = 1; pl.gx = RH[0]; pl.gy = RH[1]; pl.gz = RH[2]; pl.gnx2 = RH[3]; pl.gny2 = RH[4]; pl.gnz2 = RH[5];
+      pl.glen = t; pl.gfly = pl.gfly0 = t / GSPEED; ev.grap = 1;
+    } else { pl.gcd = 0.1; if (press) ev.gmiss = 1; }
   } else if (!inp.g && pl.grap) { pl.grap = 0; pl.gcd = 0.15; }
 
   // jump: ground / coyote, wall-run jump, wall kick, double jump
@@ -284,7 +290,8 @@ function step(inp) {
   }
 
   // grapple rope: pull toward the anchor, and the rope never lengthens (pendulum swing)
-  if (pl.grap) {
+  if (pl.grap && pl.gfly > 0 && (pl.gfly -= DT) <= 0) { ev.ghit = 1; if (pl.wall) endWall(); pl.climbT = 0; }
+  if (pl.grap && pl.gfly <= 0) {
     const dx = pl.gx - pos[0], dy = pl.gy - (pos[1] + pl.ht * 0.6), dz = pl.gz - pos[2], dist = hypot(dx, dy, dz);
     if (dist < 2) { pl.grap = 0; pl.gcd = 0.3; }
     else {

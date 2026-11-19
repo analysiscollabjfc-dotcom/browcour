@@ -1,6 +1,6 @@
 # Browcour
 
-**A first-person parkour game in an endless procedural rooftop city, in one ~45 KB HTML file.**
+**A first-person parkour game in an endless procedural rooftop city, in one ~53 KB HTML file.**
 
 No engine, no textures, no models, no sound files. Everything is generated at run time: the city from a seed, the surface detail in the shaders, the sound with the Web Audio API.
 
@@ -13,7 +13,7 @@ Open [`index.html`](index.html) in a browser with **WebGPU**: current Chrome/Edg
 | `W` `A` `S` `D` | Run. In the air, strafe + turn the mouse the same way to gain speed (air-strafing) |
 | `Space` | Jump · in the air: double jump · next to a wall: wall-kick. Jump right as you land (bunny-hop) to keep your speed |
 | `Shift` / `C` | Slide: speed boost, accelerates down slopes. In the air: fast-fall; land in a slide to turn the fall into forward speed |
-| Mouse 1 / `E` | Grapple: hold to swing, release to slingshot |
+| Mouse 1 / `E` | Grapple: the hook flies from your wrist launcher and bites; hold to swing, release to slingshot. A miss flies out and reels back |
 | Mouse 2 / `F` / `Q` | Air dash |
 | run along a wall | Wall-run (orange panels are made for it). Jump off it to chain wall-runs |
 | run into a ledge | Low: vault without losing speed. Up to ~2.3 m: mantle. Facing a wall in the air: run up it |
@@ -31,6 +31,7 @@ Free run is the whole city. Blue beams mark the starts of 5 checkpoint routes; r
 | [`source/src/city.js`](source/src/city.js) | City generator, chunk streaming, collision and ray queries |
 | [`source/src/shaders.js`](source/src/shaders.js) | WGSL: procedural facades, roofs, accents, asphalt, sky, shadows, speed lines |
 | [`source/src/render.js`](source/src/render.js) | WebGPU setup and the frame |
+| [`source/src/body.js`](source/src/body.js) | First-person body: procedural run / slide / wall-run / climb / mantle / air poses with two-bone IK, the wrist launcher, cable and hook |
 | [`source/src/game.js`](source/src/game.js) | Input, camera feel (FOV kick, wall-run roll, landing dip), routes, HUD |
 | [`source/src/audio.js`](source/src/audio.js) | Synthesized sound |
 | [`source/src/quality.js`](source/src/quality.js) | Detail levels |
@@ -43,6 +44,7 @@ Free run is the whole city. Blue beams mark the starts of 5 checkpoint routes; r
 - **One instanced draw per visible chunk.** Chunks are frustum-culled and drawn front-to-back for early depth rejection. Small rooftop clutter is skipped beyond ~125 m and in the shadow map.
 - **Textures: zero (besides the shadow map).** Windows, concrete, seams, stripes and asphalt are computed from world position. `fwidth` anti-aliasing plus a fade to the pattern's average with distance means no shimmer or moiré.
 - **The shadow map is only redrawn when it moves.** It is snapped to whole texels in light space (no crawling edges) and moves in 64-texel steps. It is redrawn only on those steps or when new chunks stream in, not every frame. It uses `depth16unorm` (half the memory of 32-bit).
+- **The body is 30-odd ray-traced capsules.** Each limb is one instance: the vertex shader draws a box around it, the fragment shader intersects the exact capsule and writes its depth. You get round limbs at any distance from 36 vertices, with no meshes and no skinning. Thin parts (cable, hook prongs) never shrink below ~1 pixel.
 - **Reversed-Z infinite projection** with `depth32float`: no far plane and no z-fighting at distance.
 - **Adaptive resolution:** the render scale drops when frames run long and recovers with headroom. The result is remembered per device.
 - **Fixed 120 Hz physics** with interpolated rendering. Collision is swept per axis, so nothing tunnels even at 70 m/s.

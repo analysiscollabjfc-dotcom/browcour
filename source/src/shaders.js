@@ -188,19 +188,59 @@ struct QO { @builtin(position) p: vec4f, @location(0) q: vec2f };
   return vec4f(vec3f(a * .32), 0.);
 }
 
-// ---------------------------------------------------------------- checkpoint beams (additive) and grapple rope
+// ---------------------------------------------------------------- checkpoint beams (additive)
 @fragment fn fsb(i: VO) -> @location(0) vec4f {
   let h = i.l.y / i.s.y;
   let a = i.m.y * (1. - h) * (.75 + .25 * sin(u.cam.w * 6. - i.l.y * .3)) * (1. - .7 * fogf(length(i.w - u.cam.xyz)));
   return vec4f(vec3f(.25, .8, 1.) * a, 0.);
 }
-@vertex fn vsr(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-  let a = u.vp * vec4f(u.r0.xyz, 1.); let b = u.vp * vec4f(u.r1.xyz, 1.);
-  let e = select(a, b, i == 1u || i == 2u || i == 4u);
-  var d = (b.xy / b.w - a.xy / a.w) * u.scr.xy;
-  d = normalize(vec2f(-d.y, d.x) + vec2f(1e-5, 0.)) / u.scr.xy * 3.;
-  let sg = select(-1., 1., i == 2u || i == 4u || i == 5u);
-  return vec4f(e.xy + d * sg * e.w, e.z, e.w);
+// ---------------------------------------------------------------- the runner's body, the grapple cable and hook
+// Everything is a capsule (segment a-b, radius): instance a = (a, r), b = (b, -), c = (colour, kind). The vertex shader
+// draws an oriented box around it, the fragment shader ray-traces the exact capsule and writes its depth, so limbs
+// are perfectly round at any distance for 36 vertices each. kind: 0 cloth/skin, 1 metal, 2 glowing.
+struct CO { @builtin(position) p: vec4f, @location(0) w: vec3f, @location(1) @interpolate(flat) a: vec4f,
+  @location(2) @interpolate(flat) b: vec3f, @location(3) @interpolate(flat) c: vec4f };
+struct CF { @location(0) c: vec4f, @builtin(frag_depth) d: f32 };
+@vertex fn vsc(@builtin(vertex_index) vi: u32, @location(0) a: vec4f, @location(1) b: vec4f, @location(2) c: vec4f) -> CO {
+  let k = CI[vi];
+  let ab = b.xyz - a.xyz; let l = length(ab);
+  let x = select(vec3f(0., 1., 0.), ab / l, l > 1e-5);
+  let y = normalize(cross(x, select(vec3f(0., 1., 0.), vec3f(1., 0., 0.), abs(x.y) > .9)));
+  let z = cross(x, y); let r = a.w;
+  let w = a.xyz + x * (select(-r, l + r, (k & 1u) == 1u)) + y * (select(-r, r, ((k >> 1u) & 1u) == 1u)) + z * (select(-r, r, (k >> 2u) == 1u));
+  var o: CO; o.p = u.vp * vec4f(w, 1.); o.w = w; o.a = a; o.b = b.xyz; o.c = c; return o;
 }
-@fragment fn fsr() -> @location(0) vec4f { return vec4f(.1, .11, .12, 1.); }
+@fragment fn fsc(i: CO) -> CF {
+  let ro = u.cam.xyz; let rd = normalize(i.w - ro);
+  let pa = i.a.xyz; let r = i.a.w; let ba = i.b - pa; let oa = ro - pa;
+  let baba = max(dot(ba, ba), 1e-8); let bard = dot(ba, rd); let baoa = dot(ba, oa); let rdoa = dot(rd, oa); let oaoa = dot(oa, oa);
+  let qa = baba - bard * bard; let qb = baba * rdoa - baoa * bard; let qc = baba * oaoa - baoa * baoa - r * r * baba;
+  var t = -1.;
+  let h = qb * qb - qa * qc;
+  if (h >= 0. && qa > 1e-9) { t = (-qb - sqrt(h)) / qa; let y = baoa + t * bard; if (y <= 0. || y >= baba) { t = -1.; } }
+  if (t < 0.) {
+    // end caps
+    let y = baoa + max((-qb - sqrt(max(h, 0.))) / max(qa, 1e-9), 0.) * bard;
+    let oc = select(ro - i.b, oa, y <= baba * .5);
+    let b2 = dot(rd, oc); let h2 = b2 * b2 - dot(oc, oc) + r * r;
+    if (h2 < 0.) { discard; }
+    t = -b2 - sqrt(h2);
+  }
+  if (t <= 0.) { discard; }
+  let p = ro + rd * t;
+  let n = normalize(p - (pa + ba * clamp(dot(p - pa, ba) / baba, 0., 1.)));
+  let kind = u32(i.c.w + .5);
+  var col: vec3f;
+  if (kind == 2u) { col = i.c.rgb; }
+  else {
+    let nl = max(dot(n, u.sun.xyz), 0.);
+    var sh = 0.; if (nl > 0.) { sh = shadow(p + n * .05); }
+    let amb = mix(vec3f(.22, .20, .19), vec3f(.30, .40, .58), n.y * .5 + .5);
+    let rim = pow(1. - max(dot(n, -rd), 0.), 3.);
+    col = i.c.rgb * (SUNC * nl * sh + amb) + rim * amb * .6;
+    if (kind == 1u) { let rf = reflect(rd, n); col = col * .5 + sky(rf) * .35 + SUNC * pow(max(dot(rf, u.sun.xyz), 1e-4), 60.) * sh; }
+  }
+  let cp = u.vp * vec4f(p, 1.);
+  var o: CF; o.c = tone(mix(col, sky(rd), fogf(t)), i.p.xy); o.d = cp.z / cp.w; return o;
+}
 `;

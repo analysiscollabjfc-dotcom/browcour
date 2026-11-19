@@ -47,6 +47,7 @@ function sfx(kind, amt) {
     case 'slide': noise('lowpass', 900, 300, 0.2, 0.45); break;
     case 'wall': noise('bandpass', 1200, 600, 0.12, 0.2); break;
     case 'grap': tone('square', 1500, 220, 0.05, 0.16); noise('highpass', 3000, 0, 0.12, 0.04); break;
+    case 'hook': tone('triangle', 1100, 260, 0.18, 0.09); noise('highpass', 2500, 0, 0.25, 0.05); noise('lowpass', 400, 0, 0.3, 0.12); break;
     case 'cp': tone('sine', 880, 0, 0.2, 0.35); tone('sine', 1320, 0, 0.16, 0.5, 0.08); break;
     case 'win': for (let i = 0; i < 4; i++) tone('sine', 660 * (1 + i * 0.25), 0, 0.16, 0.6, i * 0.09); break;
   }

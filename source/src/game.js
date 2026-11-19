@@ -170,6 +170,8 @@ function frame(now) {
       if (ev.slide) { sfx('slide'); ev.slide = 0; }
       if (ev.wall) { sfx('wall'); ev.wall = 0; }
       if (ev.grap) { sfx('grap'); ev.grap = 0; }
+      if (ev.ghit) { sfx('hook'); hookHit(); camS.dip -= 0.04; ev.ghit = 0; }
+      if (ev.gmiss) { const c = cos(inp.pitch); sfx('grap'); hookFired(1, -sin(inp.yaw) * c, sin(inp.pitch), -cos(inp.yaw) * c); ev.gmiss = 0; }
       if (ev.mantle) { sfx('jump'); ev.mantle = 0; }
       if (pos[1] < 0.6) respawn();
       // checkpoints
@@ -228,13 +230,9 @@ function frame(now) {
   UB[40] = camS.lines;
   UB[52] = cw; UB[53] = chh; UB[55] = asp;
   for (let i = 0; i < 3; i++) { UB[56 + i] = CB[i] * ty * asp; UB[60 + i] = CB[3 + i] * ty; UB[64 + i] = CB[6 + i]; }
-  // grapple rope from the right hand
-  const rope = pl.grap ? 1 : 0;
-  if (rope) {
-    UB[44] = px + CB[0] * 0.3 - CB[3] * 0.25 + CB[6] * 0.5; UB[45] = ey + CB[1] * 0.3 - CB[4] * 0.25 + CB[7] * 0.5; UB[46] = pz + CB[2] * 0.3 - CB[5] * 0.25 + CB[8] * 0.5;
-    UB[48] = pl.gx; UB[49] = pl.gy; UB[50] = pl.gz;
-  }
-  renderFrame(px, ey, pz, rope, camS.lines > 0.01 ? 1 : 0);
+  // the runner's body, the grapple cable and the hook
+  buildBody(dt, px, py, pz, px, ey, pz, yaw, CB, 2 * ty / chh, time);
+  renderFrame(px, ey, pz, camS.lines > 0.01 ? 1 : 0);
 
   // ---- HUD (text at 15 Hz so the DOM is touched rarely)
   if (msgT > 0 && (msgT -= dt) <= 0) hMsg.style.opacity = 0;

@@ -26,7 +26,7 @@ const Q = device.queue, TU = GPUTextureUsage, BU = GPUBufferUsage, SS = GPUShade
 const tShadow = device.createTexture({ size: [SHRES, SHRES], format: 'depth16unorm', usage: TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING });
 const tDummy = device.createTexture({ size: [1, 1], format: 'depth16unorm', usage: TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING });
 const sCmp = device.createSampler({ compare: 'less-equal', magFilter: 'linear', minFilter: 'linear' });
-// uniforms: vp 0, sp 16, cam 32 (xyz, time), sun 36 (dir, fog), fx 40 (lines, -, -, exposure), r0 44, r1 48 (rope),
+// uniforms: vp 0, sp 16, cam 32 (xyz, time), sun 36 (dir, fog), fx 40 (lines, -, -, exposure), r0 44, r1 48 (spare),
 // scr 52 (w, h, 1/shadow res, aspect), cr 56, cu 60, cf 64 (camera ray basis for the sky)
 const UB = new Float32Array(68);
 const ubo = device.createBuffer({ size: UB.byteLength, usage: BU.UNIFORM | BU.COPY_DST });
@@ -34,6 +34,10 @@ const instBuf = device.createBuffer({ size: WB.byteLength, usage: BU.VERTEX | BU
 const NBEAM = 8, BEAM = new Float32Array(NBEAM * BF);
 const beamBuf = device.createBuffer({ size: BEAM.byteLength, usage: BU.VERTEX | BU.COPY_DST });
 let nBeam = 0;
+// capsules: body, cable and hook. 12 floats each (a + radius, b, colour + kind), rewritten every frame
+const MAXCAP = 64, CAP = new Float32Array(MAXCAP * 12);
+const capBuf = device.createBuffer({ size: CAP.byteLength, usage: BU.VERTEX | BU.COPY_DST });
+let nCap = 0;
 const VF = SS.VERTEX | SS.FRAGMENT;
 const bgl = device.createBindGroupLayout({ entries: [
   { binding: 0, visibility: VF, buffer: {} },
@@ -46,19 +50,21 @@ const layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
 const sm = device.createShaderModule({ code: W_MAIN });
 const VB = [{ arrayStride: BF * 4, stepMode: 'instance', attributes: [
   { shaderLocation: 0, offset: 0, format: 'float32x4' }, { shaderLocation: 1, offset: 16, format: 'float32x4' }] }];
+const VBC = [{ arrayStride: 48, stepMode: 'instance', attributes: [
+  { shaderLocation: 0, offset: 0, format: 'float32x4' }, { shaderLocation: 1, offset: 16, format: 'float32x4' }, { shaderLocation: 2, offset: 32, format: 'float32x4' }] }];
 const ADD = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
 const pipe = (vs, fs, o) => device.createRenderPipelineAsync({
-  layout, vertex: { module: sm, entryPoint: vs, buffers: o.vb ? VB : [] },
+  layout, vertex: { module: sm, entryPoint: vs, buffers: o.vb === 2 ? VBC : o.vb ? VB : [] },
   fragment: fs ? { module: sm, entryPoint: fs, targets: [{ format: FMT, blend: o.add ? ADD : undefined }] } : undefined,
   primitive: { cullMode: o.cull || 'none' }, multisample: { count: o.sh ? 1 : AA },
   depthStencil: { format: o.sh ? 'depth16unorm' : DF, depthWriteEnabled: !!o.dw, depthCompare: o.dc || 'greater',
     depthBias: o.sh ? 2 : 0, depthBiasSlopeScale: o.sh ? 2.5 : 0 } });
-const [pMain, pShadow, pSky, pBeam, pRope, pLines] = await Promise.all([
+const [pMain, pShadow, pSky, pBeam, pCap, pLines] = await Promise.all([
   pipe('vs', 'fs', { vb: 1, cull: 'back', dw: 1 }),
   pipe('vss', null, { vb: 1, cull: 'back', dw: 1, dc: 'less', sh: 1 }),
   pipe('vsq', 'fsk', { dc: 'equal' }),
   pipe('vs', 'fsb', { vb: 1, add: 1 }),
-  pipe('vsr', 'fsr', { dw: 1 }),
+  pipe('vsc', 'fsc', { vb: 2, dw: 1, cull: 'front' }), // back faces: still drawn with the camera inside the box
   pipe('vsq', 'fsl', { add: 1, dc: 'always' }),
 ]);
 
@@ -123,12 +129,13 @@ function placeShadow(px, pz) {
   lightMat(SPM, MT, SUN, px + rx * da + ux * db, py + uy * db, pz + rz * da + uz * db, SH_HALF, SH_DIST, SH_DIST * 2);
 }
 
-function renderFrame(camx, camy, camz, rope, lines) {
+function renderFrame(camx, camy, camz, lines) {
   for (let s = 0; s < SLOTS; s++) if (sDirty[s]) {
     sDirty[s] = 0; shDirty = 1;
     Q.writeBuffer(instBuf, s * MAXB * BF * 4, WB.buffer, s * MAXB * BF * 4, sN[s] * BF * 4);
   }
   Q.writeBuffer(ubo, 0, UB);
+  if (nCap) Q.writeBuffer(capBuf, 0, CAP, 0, nCap * 12);
   const enc = device.createCommandEncoder();
   drawCalls = 0;
   if (shDirty) {
@@ -162,11 +169,11 @@ function renderFrame(camx, camy, camz, rope, lines) {
   const near2 = (CH * 2.6) * (CH * 2.6);
   for (let k = 0; k < nv; k++) { const s = VIS[k]; p.draw(36, VISD[k] < near2 ? sN[s] : sMaj[s], 0, s * MAXB); }
   drawCalls += nv;
+  if (nCap) { p.setPipeline(pCap); p.setVertexBuffer(0, capBuf); p.draw(36, nCap); }
   p.setPipeline(pSky); p.draw(3);
   if (nBeam) { p.setPipeline(pBeam); p.setVertexBuffer(0, beamBuf); p.draw(36, nBeam); }
-  if (rope) { p.setPipeline(pRope); p.draw(6); }
   if (lines) { p.setPipeline(pLines); p.draw(3); }
   p.end();
   SUB[0] = enc.finish(); Q.submit(SUB);
-  drawCalls += 1 + (nBeam ? 1 : 0) + rope + lines;
+  drawCalls += 1 + (nBeam ? 1 : 0) + (nCap ? 1 : 0) + lines;
 }

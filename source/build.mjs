@@ -9,7 +9,7 @@ import { transformSync } from 'esbuild';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // concatenation order matters: later files use earlier ones
-const FILES = ['quality.js', 'math.js', 'city.js', 'player.js', 'shaders.js', 'audio.js', 'render.js', 'game.js'];
+const FILES = ['quality.js', 'math.js', 'city.js', 'player.js', 'shaders.js', 'audio.js', 'render.js', 'body.js', 'game.js'];
 const readable = process.argv.includes('--readable');
 const out = readable ? 'dev.html' : 'index.html';
 
@@ -25,7 +25,7 @@ if (readable) {
   const CAP = "location.search.includes('cap')";
   js = js.replace('ctx.configure({', `if (!${CAP}) ctx.configure({`)
     // no swapchain means no back-pressure: keep one frame in flight
-    .replace('renderFrame(px, ey, pz, rope,', `if (${CAP} && window.__busy) return; if (${CAP}) { window.__busy = 1; Q.onSubmittedWorkDone().then(() => { window.__busy = 0; }); }\n  renderFrame(px, ey, pz, rope,`)
+    .replace('renderFrame(px, ey, pz,', `if (${CAP} && window.__busy) return; if (${CAP}) { window.__busy = 1; Q.onSubmittedWorkDone().then(() => { window.__busy = 0; }); }\n  renderFrame(px, ey, pz,`)
     .replace('depthAtt.view = tDepth.createView();', `depthAtt.view = tDepth.createView();\n  if (${CAP}) { if (window.__off) __off.destroy(); window.__off = device.createTexture({ size: [w, h], format: FMT, usage: TU.RENDER_ATTACHMENT | TU.COPY_SRC }); offView = __off.createView(); }`);
 }
 if (readable) html = tpl.replace('/*SCRIPT*/', () => wrap(js + '\n' + readFileSync(path.join(here, 'src', 'dev.js'), 'utf8')));
