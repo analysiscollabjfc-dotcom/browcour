@@ -6,6 +6,10 @@ No engine, no models, no sound files. Everything is generated at run time: the c
 
 A red-haired singer in white headphones follows you through the city, retracing your exact path, and sings an original synthesized dream-pop melody, placed in 3D at her position. Stop and she comes round to sing to you. Drop an audio file on the page (or pick one in the menu) and she sings that instead. Posters appear on walls across the city.
 
+## Also in this repo: Browcity
+
+[`browcity.html`](browcity.html): an endless European city with day and night, traffic and pedestrians, which you walk in third person and drive through. Same engine ideas, ~40 KB. See [`browcity/README.md`](browcity/README.md).
+
 ## Play
 
 Open [`index.html`](index.html) in a browser with **WebGPU**: current Chrome/Edge, Safari 26+, or Firefox 141+ on Windows. Press **Run**.
