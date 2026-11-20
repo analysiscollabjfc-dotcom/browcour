@@ -28,6 +28,8 @@ Open [`index.html`](index.html) in a browser with **WebGPU**: current Chrome/Edg
 | `V` | Show / hide the singer |
 | `M` `H` `Esc` | Sound, stats, menu |
 
+**On a phone or tablet:** the left thumb runs (a floating stick), drag on the right to look and aim, and the JUMP, SLIDE, HOOK and DASH buttons sit under the right thumb. The hook locks on to walls near your aim. It plays in landscape, full screen where the browser allows, and starts on Low detail.
+
 Free run is the whole city. Blue beams mark the starts of 5 checkpoint routes; run into one (or press `1`–`5`) to race it. Best times are saved in the browser.
 
 ## How it is built

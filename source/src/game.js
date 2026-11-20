@@ -29,6 +29,7 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => { const k = KM[e.code]; if (k !== undefined) keys[k] = 0; });
 addEventListener('blur', () => keys.fill(0));
 canvas.addEventListener('mousedown', (e) => {
+  if (TOUCH) return;
   if (!locked) { if (playing) lock(); return; }
   if (e.button === 0) keys[6] = 1; else if (e.button === 2) inp.dq = 1;
 });
@@ -111,7 +112,30 @@ function refreshMenu() {
   for (const b of $('rl').children) b.onclick = () => { startRoute(+b.dataset.r, true); go(); };
   for (const b of $('ql').children) b.classList.toggle('on', +b.dataset.q === LV);
 }
-function go() { playing = true; audioInit(); lock(); $('run').textContent = 'Resume'; }
+function go() {
+  playing = true; audioInit(); $('run').textContent = 'Resume';
+  if (TOUCH) { touchStart(); locked = true; body.classList.remove('m'); } else lock();
+}
+function pause() { locked = false; keys.fill(0); body.classList.add('m'); refreshMenu(); }
+// touch: if the crosshair misses, hook the nearest surface within ~10 degrees instead (thumbs are not mice)
+function aimAssist() {
+  const ey = pos[1] + pl.ht - 0.15, at = (y, p) => { const c = cos(p); return raycast(pos[0], ey, pos[2], -sin(y) * c, sin(p), -cos(y) * c, GRANGE); };
+  if (at(inp.yaw, inp.pitch) > 2) return;
+  let best = 1e9, by = 0, bp = 0;
+  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 3; j++) {
+    const dy = i * 0.06, dp = j * 0.06, t = at(inp.yaw + dy, inp.pitch + dp);
+    if (t > 2 && dy * dy + dp * dp < best) { best = dy * dy + dp * dp; by = dy; bp = dp; }
+  }
+  if (best < 1e9) { inp.yaw += by; inp.pitch = clamp(inp.pitch + bp, -1.55, 1.55); }
+}
+touchInit([
+  { label: 'JUMP', pos: 'right:20px;bottom:20px', down: () => { inp.jq = 1; } },
+  { label: 'SLIDE', pos: 'right:100px;bottom:14px', down: () => { keys[4] = 1; }, up: () => { keys[4] = 0; } },
+  { label: 'HOOK', pos: 'right:20px;bottom:100px', down: () => { aimAssist(); keys[6] = 1; }, up: () => { keys[6] = 0; } },
+  { label: 'DASH', pos: 'right:96px;bottom:92px', down: () => { inp.dq = 1; } },
+  { label: 'II', small: 1, pos: 'left:12px;top:12px', down: pause },
+  { label: '↺', small: 1, pos: 'left:66px;top:12px', down: () => restart() },
+], (dx, dy) => { const k = 0.0055 * cfg.sens; inp.yaw -= dx * k; inp.pitch = clamp(inp.pitch - dy * k, -1.55, 1.55); });
 $('run').onclick = go;
 for (const b of $('ql').children) b.onclick = () => { keep('browcour', b.dataset.q); location.reload(); };
 const songIn = $('song');
@@ -164,6 +188,7 @@ function frame(now) {
 
   // ---- simulation
   inp.f = keys[0] - keys[1]; inp.s = keys[3] - keys[2]; inp.c = keys[4]; inp.g = keys[5] | keys[6];
+  if (TJ[2]) { inp.f = abs(TJ[1]) > 0.22 ? TJ[1] : 0; inp.s = abs(TJ[0]) > 0.22 ? TJ[0] : 0; } // touch stick
   if (locked) {
     acc += dt;
     while (acc >= DT) {

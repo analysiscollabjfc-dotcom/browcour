@@ -90,7 +90,7 @@ fn shade(alb: vec3f, emi: vec3f, spec: f32, w: vec3f, n: vec3f, ao: f32, px: vec
   let nl = max(dot(n, u.sun.xyz), 0.);
   var sh = 0.; if (nl > 0.) { sh = shadow(w + n * .12); }
   var c = alb * (u.sunc.rgb * nl * sh + mix(u.ambg.rgb, u.amb.rgb, n.y * .5 + .5) * ao) + emi + u.sunc.rgb * spec * sh;
-  if (u.sunc.w > .01) { c += alb * lamps(w, n) * u.sunc.w; }
+  if (u.sunc.w > .01 && dist < 140.) { c += alb * lamps(w, n) * u.sunc.w * (1. - smoothstep(110., 140., dist)); }
   if (u.hl0.w > 0.) {
     // the player car's headlights
     let d = w - u.hl0.xyz; let dl = length(d); let dn = d / dl;

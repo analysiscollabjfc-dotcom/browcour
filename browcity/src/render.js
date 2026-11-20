@@ -77,7 +77,7 @@ const mainPass = { colorAttachments: [colorAtt], depthStencilAttachment: depthAt
 const shadowPass = { colorAttachments: [], depthStencilAttachment: { view: tShadow.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } };
 const SUB = [null];
 function resize() {
-  const dpr = min(devicePixelRatio || 1, 2);
+  const dpr = min(devicePixelRatio || 1, mob ? 1.5 : 2); // phones: 1.5x is plenty at arm's length
   const w = max(16, round(canvas.clientWidth * dpr * scale)), h = max(16, round(canvas.clientHeight * dpr * scale));
   if (w === cw && h === chh) return;
   cw = canvas.width = w; chh = canvas.height = h;

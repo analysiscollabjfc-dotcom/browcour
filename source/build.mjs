@@ -9,7 +9,7 @@ import { transformSync } from 'esbuild';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // concatenation order matters: later files use earlier ones
-const FILES = ['quality.js', 'math.js', 'city.js', 'player.js', 'shaders.js', 'audio.js', 'render.js', 'body.js', 'singer.js', 'game.js'];
+const FILES = ['quality.js', 'math.js', 'city.js', 'player.js', 'shaders.js', 'audio.js', 'render.js', 'body.js', 'singer.js', 'touch.js', 'game.js'];
 const readable = process.argv.includes('--readable');
 const out = readable ? 'dev.html' : 'index.html';
 

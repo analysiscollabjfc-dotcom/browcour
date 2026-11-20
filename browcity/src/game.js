@@ -24,7 +24,7 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => { const k = KM[e.code]; if (k !== undefined) keys[k] = 0; });
 addEventListener('blur', () => keys.fill(0));
-canvas.addEventListener('mousedown', () => { if (!locked && playing) lock(); });
+canvas.addEventListener('mousedown', () => { if (!TOUCH && !locked && playing) lock(); });
 addEventListener('contextmenu', (e) => e.preventDefault());
 let camYaw = 0, camPitch = -0.2, mouseT = 9;
 addEventListener('mousemove', (e) => {
@@ -35,7 +35,20 @@ addEventListener('mousemove', (e) => {
 const lock = () => { const p = canvas.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(() => canvas.requestPointerLock()); };
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; body.classList.toggle('m', !locked); if (!locked) keys.fill(0); });
 document.addEventListener('visibilitychange', () => { if (AC) document.hidden ? AC.suspend() : AC.resume(); });
-function go() { playing = true; audioInit(); lock(); $('run').textContent = 'Resume'; }
+function go() {
+  playing = true; audioInit(); $('run').textContent = 'Resume';
+  if (TOUCH) { touchStart(); locked = true; body.classList.remove('m'); } else lock();
+}
+const inCarNow = () => pl.car >= 0;
+touchInit([
+  { label: 'JUMP', pos: 'right:20px;bottom:20px', down: () => { inp.jq = 1; }, show: () => !inCarNow() },
+  { label: 'DRIFT', pos: 'right:20px;bottom:20px', down: () => { keys[5] = 1; }, up: () => { keys[5] = 0; }, show: inCarNow },
+  { label: 'CAR', pos: 'right:100px;bottom:22px', down: () => { fq = 1; }, show: () => inCarNow() || nearPK >= 0 || nearOK },
+  { label: 'HORN', pos: 'right:20px;bottom:100px', down: () => { hornQ = 1; }, show: inCarNow },
+  { label: 'II', small: 1, pos: 'left:12px;top:12px', down: () => { locked = false; keys.fill(0); body.classList.add('m'); } },
+  { label: '+1h', small: 1, pos: 'left:66px;top:12px', down: () => { tod = (tod + 1) % 24; msg(clock(), 1); } },
+], (dx, dy) => { const k = 0.005 * cfg.sens; camYaw -= dx * k; camPitch = clamp(camPitch - dy * k, -1.2, 0.75); mouseT = 0; });
+let nearOK = false;
 $('run').onclick = go;
 for (const b of $('ql').children) { b.classList.toggle('on', +b.dataset.q === LV); b.onclick = () => { keep('browcity', b.dataset.q); location.reload(); }; }
 for (const b of $('dl').children) { b.classList.toggle('on', +b.dataset.d === cfg.day); b.onclick = () => { cfg.day = +b.dataset.d; saveCfg(); for (const c of $('dl').children) c.classList.toggle('on', c === b); }; }
@@ -110,6 +123,9 @@ function frame(now) {
 
   // ---- player
   inp.f = keys[0] - keys[1]; inp.s = keys[3] - keys[2]; inp.run = keys[4]; inp.hb = keys[5];
+  if (TJ[2]) { // touch stick: analog steering and walking, push it all the way to sprint
+    inp.f = abs(TJ[1]) > 0.18 ? TJ[1] : 0; inp.s = abs(TJ[0]) > 0.18 ? TJ[0] : 0; inp.run = hypot(TJ[0], TJ[1]) > 0.93 ? 1 : 0;
+  }
   if (locked) {
     if (fq) {
       if (pl.car < 0) { if (enterCar()) { sfx('door'); const o = pl.car * 32; CP[0] = CA[o]; CP[1] = CA[o + 1]; CP[2] = CA[o + K_YAW]; CP[3] = CA[o + K_Y]; msg(CNAME[CA[o + K_T]], 1.2); } }
@@ -207,7 +223,9 @@ function frame(now) {
     hClock.textContent = clock();
     audioEngine(inCar && locked, inCar ? CA[co + K_V] : 0, inp.f > 0 ? 1 : 0);
     if (inCar) { hSpd.textContent = round(abs(CA[co + K_V]) * 3.6) + ' km/h'; hHint.textContent = 'F  get out   ·   H  horn   ·   Space  handbrake'; }
-    else { hSpd.textContent = ''; hHint.textContent = nearestCar() >= 0 || nearPK >= 0 ? 'F  get in' : ''; }
+    else { hSpd.textContent = ''; nearOK = nearestCar() >= 0; hHint.textContent = !TOUCH && (nearOK || nearPK >= 0) ? 'F  get in' : ''; }
+    if (inCar && TOUCH) hHint.textContent = '';
+    touchShow();
     if (showStats) hSt.textContent = `${fpsShow.toFixed(0)} fps  ${cw}×${chh} (${(scale * 100).toFixed(0)}%)  ${drawCalls} draws  ${nDC} capsules  ${nDO} car boxes  LV ${'HML'[LV]}`;
   }
 }

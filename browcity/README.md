@@ -39,6 +39,8 @@ Open [`../browcity.html`](../browcity.html) in a browser with WebGPU (current Ch
 
 `T` skips an hour, `M` sound, `I` stats, `Esc` menu (day length, detail level, mouse sensitivity).
 
+**On a phone or tablet:** the left thumb walks (push the stick all the way to sprint) and, in a car, controls throttle, brake/reverse and steering. Drag on the right to look. The buttons change with what you're doing: JUMP on foot; CAR next to a car; DRIFT and HORN while driving. It plays in landscape, full screen where the browser allows, on Low detail.
+
 ## How it stays small and fast
 
 - **No textures, no models, no audio files.** Every surface pattern is computed from world position: each era's facade, roof tiles, cobbles, paving, asphalt markings, grass, water, car paint and glass.
